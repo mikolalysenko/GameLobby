@@ -1,0 +1,91 @@
+<html>
+<head>
+  <title> Lobby </title>
+  <script src="/browserify.js"></script>
+	<link  href="css/game.css" rel="stylesheet"/>
+</head>
+
+<body>
+  <div id="loginPage">
+    <h1> Choose a method to login: </h1>
+    <p> You can use your Google ID: </p>
+    <p> <a href="authenticate?identifier=https://www.google.com/accounts/o8/id"><img src="images/google.png" width=120px/></a>  </p>
+    <p> ...or enter your own <img src="images/openid-logo.png" width="50px" alt="OpenID"/> provider: </p>
+    <p> <input type="text" id="customProvider" /> <input type="submit" id="submitCustom" /> </p>
+    <p> ...or just skip it: </p>
+    <p> 
+      <a href="authenticate?identifier=temporary"> Temporary Login <b>(Warning!  No saving!)</b> </a> 
+    </p>  
+  </div>
+
+  <div id="lobbyPage">
+    <div id="roomsList">
+    </div>
+    <div id="lobbyPanel" class="rightPanel">
+      <div id="lobbyStatus">
+        <div id="lobbyPlayerName"> </div>
+      </div>
+      <div id="lobbyButtons">
+        <input type="button" id="lobbyRefresh" value="Refresh" />
+        <input type="button" id="lobbyEdit" value="Edit Machine" />
+        <p>
+          <input type="button" id="lobbyCreateRoom" value="Create Room" />
+          <input type="text" id="lobbyRoomName" value="Room Name" />
+        </p>
+      </div>
+      <div id="lobbyErrors" class="errorBox"> </div>
+    </div>
+  </div>
+  
+  <div id="roomPage">  
+    <div id="roomPanel" class="rightPanel">
+      <div id="roomName"></div>
+      <div id="roomPlayers">
+        Players:
+      </div>
+      <div id="roomButtons">
+        <div id="roomCreatureList"> </div>
+        <p> Ready: <input type="checkbox" id="roomReady" /> </p>
+        <input type="button" id="roomLeave" value="Leave" />
+      </div>
+      <div id="roomErrors" class="errorBox"> </div>
+    </div>
+    <div id="roomChat">
+    </div>
+  </div>
+  
+  <div id="editPage">
+    <div align="center" id="editCreatureName" />Untitled Creature</div>
+    <canvas id="editCanvas" width="600" height="400"></canvas>
+    <div id="editPanel" class="rightPanel">
+      <p>
+        Tool:
+        <select id="editTool">
+          <option id="editToolBox" value="box">Box</option>
+          <option id="editToolJoint" value="joint">Joint</option>
+          <option id="editToolMove" value="move">Move</option>
+          <option id="editToolDelete" value="delete">Delete</option>
+        </select>
+      </p>
+      <p>Physics: <input type="checkbox" id="editGravity"/></p>
+      <div id="editCreatureList"> </div>
+      <input type="button" id="editSave" value="Save" /> 
+      <input type="button" id="editSaveAs" value="Save As" />
+      <input type="button" id="editBack" value="Back to Lobby" />
+      <div id="editErrors" class="errorBox"></div>
+    </div>
+  </div>
+  
+  <div id="battlePage">
+    <canvas id="battleCanvas" width="600" height="400"></canvas>
+    <div id="battlePanel" class="rightPanel">
+      <input type="button" id="battleReady" value="Execute" />
+      <input type="button" id="battleResign" value="Resign" />
+    </div>
+    <div id="battleChat">
+    </div>
+    <div id="battleErrors" class="errorBox"></div>
+  </div>
+</body>
+</html>
+

@@ -1,0 +1,44 @@
+body {
+	overflow	: hidden;
+	padding		: 0;
+	margin		: 0;
+
+	color		: #222;
+	background-color: #ffffff;
+	font-family	: arial;
+	font-size	: 100%;
+}
+
+canvas {
+  background-color:#333333;
+}
+
+#loginPage {
+  display: none;
+}
+
+#lobbyPage {
+  display: none;
+}
+
+#battlePage {
+  display: none;
+}
+
+#roomPage {
+  display: none;
+}
+
+#editPage {
+  display: none;
+}
+
+.errorBox {
+  color: red;
+}
+
+.rightPanel {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+}
