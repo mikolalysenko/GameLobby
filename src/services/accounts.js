@@ -1,71 +1,43 @@
-var crypto = require('crypto')
-  , EventEmitter = require('events').EventEmitter
-  , url = require("url");
+var EventEmitter = require('events').EventEmitter
+  , url = require("url")
+  , Session = require('../models/session.js').Session
+  , Account = require('../models/account.js').Account;
+
 
 exports.createAccountService = function(app, cb) {
   "use strict";
   
   console.log("Starting account service...");
 
-  //Create a random string (FIXME: not cryptographically secure)
-  function randomString() {
-    var hash = crypto.createHash('sha256');
-    hash.update("ashfh134na" + (new Date()).toISOString() + Math.floor(0xffffff * Math.random()).toString(32));
-    return hash.digest('base64');
-  }
-  
+
   //The session data set
   var sessions = {}
     , account_index = {};
   
-  //Session data
-  function Session(account, session_id) {
-    EventEmitter.call(this);
+  function makeSession(account) {
+    var session = new Session(new Account(account));
     
-    this.account    = account;
-    this.session_id = session_id;
-    this.last_poked = new Date();
-    this.logged_in  = true;
-    this.state      = "Lobby";
-
     //Save in account index
-    account_index[account._id] = this;
-  }
-  
-  //Inherit from event emitter
-  Session.prototype = new EventEmitter();
-  
-  //Save state of session immediately
-  Session.prototype.save_immediate = function() {
-    if(!this.logged_in) {
-      return;
-    }
-    this.emit("save");
-    app.db.accounts.save(this.account);
-  }
-  
-  //Update the session
-  Session.prototype.poke = function() {
-    if(!this.logged_in) {
-      return;
-    }
-    this.last_poked = new Date();
-  }
-  
-  //Close session immediately
-  Session.prototype.logout = function() {
-    if(!this.logged_in) {
-      return;
-    }
-  
-    this.emit("save");
-  
-    this.account.logged_in = false;
-    delete account_index[this.account._id];
-    delete sessions[this.session_id];
+    sessions[session.session_id] = session;
+    account_index[account._id] = session;
     
-    this.emit('logout');
-    app.db.accounts.save(this.account);
+    app.emit('login', session);
+    
+    session.on('save', function() {
+      app.db.accounts.save(session.account);
+    });
+    
+    session.on('logout', function() {
+      app.log("Account logged out");
+      if(session.session_id in sessions) {
+        delete sessions[session.session_id];
+      }
+      if(session.account._id in account_index) {
+        delete account_index[session.account._id];
+      }
+    });
+    
+    return session;
   }
   
   //Once ever minute, do a check point and clear out old sessions.
@@ -76,14 +48,13 @@ exports.createAccountService = function(app, cb) {
       var session = sessions[id];
       if(session.last_poked.getTime() < timeout) {
         session.logout();
-      } else {
-        app.db.accounts.save(session.account);
       }
+      app.db.accounts.save(session.account);
     }
   }, 60 * 1000);
   
   //Creates a new session
-  function login(openid_token, cb) {
+  function login(openid_token, ip, cb) {
 
     //Creates an identity
     function createIdentity(account_id, cb) {
@@ -95,14 +66,8 @@ exports.createAccountService = function(app, cb) {
     
     //Creates an account
     function createAccount(cb) {
-      var account = { 
-          created_at: new Date()
-        , logged_in: false
-        , last_login: new Date()
-        , temporary: false 
-        , player_name: 'Anonymous'
-        , can_change_name: true
-      };
+      var account = new Account({});
+      account.last_ip_address = ip;
       if(openid_token.indexOf("temp") === 0) {
         account.temporary = true;
       }
@@ -117,9 +82,9 @@ exports.createAccountService = function(app, cb) {
     
       //Check if already logged in
       if(identity.account_id in account_index) {
-        var session_id = account_index[identity.account_id];
-        sessions[session_id].poke();
-        cb(null, session_id);
+        var session = account_index[identity.account_id];
+        session.poke();
+        cb(null, session.session_id);
         return;
       }  
     
@@ -137,17 +102,16 @@ exports.createAccountService = function(app, cb) {
         //Set account to logged in state
         account.logged_in = true;
         account.last_login = new Date();
+        account.last_ip_address = ip;
         
         app.db.accounts.save(account, function(err) {
           if(err) {
             cb(err);
             return;
           }
-          var session_id = randomString()
-            , session = new Session(account, session_id);
-          sessions[session_id] = session;
-          app.emit('login', session);        
-          cb(err, session_id);
+          
+          var session = makeSession(account);
+          cb(err, session.session_id);
         });
       });
     }
@@ -180,14 +144,18 @@ exports.createAccountService = function(app, cb) {
 
   //Create the account handler
   app.accounts = {
-    tryLogin : function(openid_token, cb) {
-      login(openid_token, cb);
+    tryLogin : function(openid_token, ip, cb) {
+      login(openid_token, ip, cb);
     }
-    , temporaryLogin : function(cb) {
-      login("temp:" + randomString(), cb);
+    , temporaryLogin : function(ip, cb) {
+      login("temp:" + (new Date()).getMilliseconds() + Math.random(), ip, cb);
     }  
     , getSession : function(session_id) {
-      return sessions[session_id];
+      var session = sessions[session_id];
+      if(session) {
+        session.poke();
+      }
+      return session;
     }
     , foreachSession : function(visitor) {
       for(var id in sessions) {
@@ -197,9 +165,9 @@ exports.createAccountService = function(app, cb) {
   };
 
   //REST API for setting player name
-  app.server.get('/account/set_name', function(req, res) {
+  app.server.get('/set_name', function(req, res) {
     var parsed_url = url.parse(req.url, true)
-      , session_id = parsed_url.query["session_id"]
+      , session_id = req.signedCookies.session_id
       , player_name = parsed_url.query["player_name"]
       , session = app.accounts.getSession(session_id);
     
@@ -207,29 +175,29 @@ exports.createAccountService = function(app, cb) {
       || !player_name 
       || !(/^\w+$/.test(player_name))
       || player_name.length > 16) {
-      res.writeHead(400);
-      res.end("Invalid session");
+      res.writeHead(200);
+      res.end('{"success":false,"reason":"Invalid session"}');
       return;
     }
     
     //Try inserting player name into database
     var can_change = session.account.can_change_name;
     if(!can_change) {
-      res.writeHead(400);
-      res.end("Name already set");
+      res.writeHead(200);
+      res.end('{"success":false,"reason":"You can only select a name once"}');
       return;
     }
     
     app.db.accounts.findOne({'player_name':player_name}, function(err, account) {
       if(err) {
         console.log("Error setting player name:", err, session, player_name);
-        res.writeHead(400);
-        res.end("Unspecified Error");
+        res.writeHead(200);
+        res.end('{"success":false,"reason":"Unspecified error"}');
         return;
       }
       if(account) {
-        res.writeHead(400);
-        res.end("Name in use");
+        res.writeHead(200);
+        res.end('{"success":false,"reason":"Name already in use"}');
         return;
       }
       
@@ -237,40 +205,57 @@ exports.createAccountService = function(app, cb) {
       var old_name = session.account.player_name;
       session.account.player_name = player_name;
       session.account.can_change_name = false;
-      session.save_immediate();
+      session.save();
       
       //Send a name changed event
       session.emit("name_changed", old_name, player_name);
       
       res.writeHead(200);
-      res.end("Success");
+      res.end('{"success":true}');
       return;
     });    
   });
   
   //API to retrieve account status
-  app.server.get("/account/status", function(req, res) {
+  app.server.get("/status", function(req, res) {
   
-    var parsed_url = url.parse(req.url, true)
-      , session_id = parsed_url.query["session_id"]
+    var session_id = req.signedCookies.session_id
       , session = app.accounts.getSession(session_id);
 
+    app.log("Status request: ", session_id, "IP address: ", req.ip);
+
     if(!session) {
-      res.writeHead(400);
-      res.end("Missing session id");
+      res.writeHead(200);
+      res.end('{"state":"login"}');
       return;
     }
     
     //Update player status
     var account_data = {
-        player_name: session.account.player_name
-      , can_change_name: session.account.can_change_name
-      , state: session.state
+        player_name:      session.account.player_name
+      , can_change_name:  session.account.can_change_name
+      , state:            session.state
     };
-    session.emit("get_status", account_data);
+    session.emit("status", account_data);
   
     res.writeHead(200);
     res.end(JSON.stringify(account_data));
+    return;
+  });
+  
+  app.server.get("/logout", function(req, res) {
+  
+    res.clearCookie("session_id");
+    res.writeHead(200);
+    res.end('{"success":true}');
+    
+    var session_id = req.signedCookies.session_id
+      , session = app.accounts.getSession(session_id);
+
+    if(session) {
+      session.logout();
+    }
+    
     return;
   });
 

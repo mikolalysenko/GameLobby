@@ -31,10 +31,10 @@ exports.createSocketService = function(app, cb) {
     
     
   
-  var wss = new WebSocketServer({server: app.http_server});
+  var wss = new WebSocketServer({server: app.server});
   wss.on('connection', function(ws) { 
     
-    console.log("WebSocket Connected");
+    app.log("WebSocket Connected");
     
     //Check session id
     ws.once('message', function(session_id, flags) {

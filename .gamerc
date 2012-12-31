@@ -1,0 +1,8 @@
+{
+    db_url : "mongodb://localhost:27017/test",
+  http_url : "http://localhost:8080/",
+  http_port : 8080,
+  game_page : 'index.html',
+  session_timeout: 5 * 60 * 1000,
+  debug: true
+}
