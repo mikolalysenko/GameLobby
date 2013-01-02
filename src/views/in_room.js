@@ -22,6 +22,11 @@ exports.create = function(client) {
         $.get("/leave_room");
         client.gotoState("lobby");
       });
+      
+      $("#ready").change(function(ev) {
+        var checked = $("#ready").val();
+        $.get("/set_ready?ready_state="+checked);
+      });
     },
     
     deinit: function() {

@@ -12,7 +12,6 @@ exports.create = function(client) {
         client.gotoState("in_room", data);
       }
     });
-    
     return false;
   }
   
